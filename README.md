@@ -25,117 +25,116 @@ Run all cells from top to bottom. The experiments use fixed random seeds where a
 
 ### 1. Synthetic Data Generation
 
-The synthetic regression dataset is generated according to
+The dataset is generated according to
 
-\[
-y_i=f^*(x_i)+\epsilon_i,
-\]
+$$
+y_i = f^*(x_i) + \epsilon_i
+$$
 
 where the underlying function is
 
-\[
-f^*(x)=\sin(2\pi x)+0.3x.
-\]
+$$
+f^*(x) = \sin(2\pi x) + 0.3x
+$$
 
-The input samples are drawn from a uniform distribution:
+The input samples and observation noise are drawn from
 
-\[
-x_i\sim\mathcal{U}(0,1),
-\]
-
-and the observation noise follows a Gaussian distribution:
-
-\[
-\epsilon_i\sim\mathcal{N}(0,\sigma^2).
-\]
+$$
+x_i \sim \mathcal{U}(0,1),
+\qquad
+\epsilon_i \sim \mathcal{N}(0,\sigma^2)
+$$
 
 ### 2. Neural Network Architecture
 
-The regression model is a multilayer perceptron (MLP) with two hidden layers using ReLU activations and a single linear output neuron.
+The MLP consists of two hidden layers with ReLU activation and one linear output neuron.
 
-For an input \(x\), the network computes
+$$
+h_1 = \operatorname{ReLU}(W_1x+b_1)
+$$
 
-\[
-\begin{aligned}
-h_1 &= \operatorname{ReLU}(W_1x+b_1),\\
-h_2 &= \operatorname{ReLU}(W_2h_1+b_2),\\
-\hat y &= W_3h_2+b_3.
-\end{aligned}
-\]
+$$
+h_2 = \operatorname{ReLU}(W_2h_1+b_2)
+$$
 
-The hidden-layer width is selected according to the experiment.
+$$
+\hat{y} = W_3h_2+b_3
+$$
 
 ### 3. Maximum Likelihood Estimation (MLE)
 
-Assuming conditionally independent Gaussian observation noise,
+Assuming Gaussian observation noise,
 
-\[
-y_i\mid x_i,\theta
+$$
+y_i \mid x_i,\theta
 \sim
-\mathcal{N}(f_\theta(x_i),\sigma^2),
-\]
+\mathcal{N}(f_\theta(x_i),\sigma^2)
+$$
 
 the mean negative log-likelihood is
 
-\[
+$$
 \mathcal{L}_{\mathrm{NLL}}(\theta)
 =
-\frac{1}{N}\sum_{i=1}^{N}
+\frac{1}{N}
+\sum_{i=1}^{N}
 \left[
 \frac{1}{2}\log(2\pi\sigma^2)
 +
 \frac{(y_i-f_\theta(x_i))^2}{2\sigma^2}
-\right].
-\]
+\right]
+$$
 
-MLE estimates the network parameters by minimizing this objective:
+MLE estimates the parameters by minimizing this objective:
 
-\[
+$$
 \theta_{\mathrm{MLE}}
 =
-\arg\min_\theta
-\mathcal{L}_{\mathrm{NLL}}(\theta).
-\]
+\arg\min_{\theta}
+\mathcal{L}_{\mathrm{NLL}}(\theta)
+$$
 
-For fixed \(\sigma^2\), minimizing the Gaussian negative log-likelihood is equivalent to minimizing the mean squared error.
+For fixed noise variance, minimizing Gaussian NLL is equivalent to minimizing MSE.
 
 ### 4. Maximum A Posteriori Estimation (MAP)
 
-MAP estimation introduces a zero-mean Gaussian prior on the network weights:
+A zero-mean Gaussian prior is imposed on the network weights:
 
-\[
-W_j\sim\mathcal{N}(0,\tau^2I).
-\]
+$$
+W_j \sim \mathcal{N}(0,\tau^2 I)
+$$
 
-Ignoring constants independent of the parameters, the resulting objective is
+The resulting MAP objective is
 
-\[
+$$
 \mathcal{L}_{\mathrm{MAP}}
 =
 \mathcal{L}_{\mathrm{NLL}}
 +
 \frac{1}{2N\tau^2}
-\sum_j\|W_j\|_2^2.
-\]
+\sum_j \|W_j\|_2^2
+$$
 
-Thus, MAP estimation is implemented by adding L2 regularization to the mean Gaussian negative log-likelihood. In the implementation, the regularizer is applied to layer kernels (weights), not biases.
+Therefore, the regularization coefficient is
 
-The coefficient used in the experiment is
+$$
+\lambda_{\mathrm{MAP}}
+=
+\frac{1}{2N\tau^2}
+$$
 
-\[
-\lambda_{\mathrm{MAP}}=\frac{1}{2N\tau^2},
-\]
-
-with \(\tau=1\).
+In the implementation, $\tau=1$, and L2 regularization is applied to layer weights (kernels), not biases.
 
 ### 5. Evaluation and Regularization Study
 
-Mean squared error (MSE) is used to evaluate prediction accuracy:
+Prediction performance is evaluated using mean squared error:
 
-\[
+$$
 \operatorname{MSE}
 =
-\frac{1}{N}\sum_{i=1}^{N}(y_i-\hat y_i)^2.
-\]
+\frac{1}{N}
+\sum_{i=1}^{N}
+(y_i-\hat{y}_i)^2
+$$
 
-A separate regularization experiment compares training and test MSE across several L2 coefficients, including the coefficient associated with the MAP formulation. The MSE used for evaluation measures prediction error only and does not include the regularization penalty.
+A separate experiment compares training and test MSE across several L2 regularization coefficients, including the MAP-associated coefficient. The reported MSE measures prediction error only; it does not include the regularization penalty.
