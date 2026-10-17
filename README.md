@@ -1,140 +1,124 @@
-# MLP Regression: MLE vs MAP
+# MLP Regression with MLE and MAP
 
-This project studies a two-hidden-layer ReLU MLP on a synthetic nonlinear regression task. It compares ordinary maximum-likelihood training with L2-regularized maximum-a-posteriori (MAP) training.
+This project studies nonlinear regression with a Multi-Layer Perceptron (MLP). It compares training with a Gaussian negative log-likelihood (MLE setting) and with an L2-regularized objective motivated by Maximum a Posteriori (MAP) estimation. It also explores how different L2 regularization strengths affect regression performance.
 
-## Contents
-- `notebook.ipynb`: experiments, plots, learning curves, regularization sensitivity, and convergence.
-- `src.py`: shared synthetic-data utilities and the MLP model definition.
+## Project overview
 
-## Setup
-Install Python 3.10+ and the dependencies:
-
-```bash
-pip install numpy matplotlib seaborn tensorflow jupyter
-```
-
-Open the notebook from this directory so that `from src import ...` works:
-
-```bash
-jupyter notebook notebook.ipynb
-```
-
-Run all cells from top to bottom. The experiments use fixed random seeds where appropriate for reproducibility.
-
-## Methodology
-
-### 1. Synthetic Data Generation
-
-The dataset is generated according to
+The experiments use synthetic one-dimensional data generated from a known nonlinear function with additive Gaussian noise:
 
 $$
-y_i = f^*(x_i) + \epsilon_i
-$$
-
-where the underlying function is
-
-$$
-f^*(x) = \sin(2\pi x) + 0.3x
-$$
-
-The input samples and observation noise are drawn from
-
-$$
-x_i \sim \mathcal{U}(0,1),
-\qquad
-\epsilon_i \sim \mathcal{N}(0,\sigma^2)
-$$
-
-### 2. Neural Network Architecture
-
-The MLP consists of two hidden layers with ReLU activation and one linear output neuron.
-
-$$
-h_1 = \operatorname{ReLU}(W_1x+b_1)
+x_i \sim \mathcal{U}(0,1)
 $$
 
 $$
-h_2 = \operatorname{ReLU}(W_2h_1+b_2)
+y_i = f^*(x_i) + \epsilon_i,\qquad \epsilon_i \sim \mathcal{N}(0,\sigma_{\text{noise}}^2)
+$$
+
+The underlying function is
+
+$$
+f^*(x) = \sin(2\pi x) + 0.3x.
+$$
+
+The dataset is generated with 75 samples and a noise standard deviation of 0.12 in the notebook.
+
+## Model architecture
+
+The regression model is a feed-forward MLP with two hidden Dense layers using ReLU activations and a single linear output unit:
+
+$$
+h_1 = \mathrm{ReLU}(W_1x+b_1)
+$$
+
+$$
+h_2 = \mathrm{ReLU}(W_2h_1+b_2)
 $$
 
 $$
 \hat{y} = W_3h_2+b_3
 $$
 
-### 3. Maximum Likelihood Estimation (MLE)
+Here, $W_j$ and $b_j$ denote the weights and biases of layer $j$. The L2 regularizer is applied to the Dense-layer kernels (weights), not to the biases.
 
-Assuming Gaussian observation noise,
+## Maximum Likelihood Estimation (MLE)
 
-$$
-y_i \mid x_i,\theta
-\sim
-\mathcal{N}(f_\theta(x_i),\sigma^2)
-$$
-
-the mean negative log-likelihood is
+Assume the target is conditionally Gaussian given the input:
 
 $$
-\mathcal{L}_{\mathrm{NLL}}(\theta)
-=
-\frac{1}{N}
-\sum_{i=1}^{N}
-\left[
-\frac{1}{2}\log(2\pi\sigma^2)
-+
-\frac{(y_i-f_\theta(x_i))^2}{2\sigma^2}
-\right]
+y_i \mid x_i,\theta \sim \mathcal{N}(f_\theta(x_i),\sigma^2)
 $$
 
-MLE estimates the parameters by minimizing this objective:
+The mean negative log-likelihood is
 
 $$
-\theta_{\mathrm{MLE}}
-=
-\arg\min_{\theta}
-\mathcal{L}_{\mathrm{NLL}}(\theta)
+\mathcal{L}_{\mathrm{NLL}}(\theta) = \frac{1}{N}\sum_{i=1}^{N}\left[\frac{1}{2}\log(2\pi\sigma^2)+\frac{(y_i-f_\theta(x_i))^2}{2\sigma^2}\right].
 $$
 
-For fixed noise variance, minimizing Gaussian NLL is equivalent to minimizing MSE.
-
-### 4. Maximum A Posteriori Estimation (MAP)
-
-A zero-mean Gaussian prior is imposed on the network weights:
+Maximum likelihood estimation chooses the model parameters that minimize this objective:
 
 $$
-W_j \sim \mathcal{N}(0,\tau^2 I)
+\theta_{\mathrm{MLE}} = \arg\min_{\theta}\mathcal{L}_{\mathrm{NLL}}(\theta).
 $$
 
-The resulting MAP objective is
+The notebook implements this Gaussian negative log-likelihood as a custom TensorFlow loss. The observation-noise standard deviation used in this experiment is $\sigma=0.2$.
+
+## Maximum a Posteriori (MAP) estimation
+
+MAP estimation combines the data likelihood with a prior over the model weights. With an independent zero-mean Gaussian prior on the weights,
 
 $$
-\mathcal{L}_{\mathrm{MAP}}
-=
-\mathcal{L}_{\mathrm{NLL}}
-+
-\frac{1}{2N\tau^2}
-\sum_j \|W_j\|_2^2
+W_j \sim \mathcal{N}(0,\tau^2 I),
 $$
 
-Therefore, the regularization coefficient is
+minimizing the negative log-posterior gives the negative log-likelihood plus an L2 penalty on the weights. With the mean-NLL convention used here, the objective is
 
 $$
-\lambda_{\mathrm{MAP}}
-=
-\frac{1}{2N\tau^2}
+\mathcal{L}_{\mathrm{MAP}}(\theta) = \mathcal{L}_{\mathrm{NLL}}(\theta) + \frac{1}{2N\tau^2}\sum_j \|W_j\|_2^2.
 $$
 
-In the implementation, $\tau=1$, and L2 regularization is applied to layer weights (kernels), not biases.
-
-### 5. Evaluation and Regularization Study
-
-Prediction performance is evaluated using mean squared error:
+Therefore, the corresponding L2 coefficient is
 
 $$
-\operatorname{MSE}
-=
-\frac{1}{N}
-\sum_{i=1}^{N}
-(y_i-\hat{y}_i)^2
+\lambda_{\mathrm{MAP}}=\frac{1}{2N\tau^2}.
 $$
 
-A separate experiment compares training and test MSE across several L2 regularization coefficients, including the MAP-associated coefficient. The reported MSE measures prediction error only; it does not include the regularization penalty.
+The notebook uses $\tau=1.0$ and computes this coefficient from the number of training examples. The regularization term applies to the layer weights, consistent with the model's kernel regularizers.
+
+**Important:** the loss recorded during MAP training includes both the data-fit term and the regularization penalty. It is not the same quantity as the unregularized MSE.
+
+## MSE and regularization-strength experiment
+
+Mean squared error (MSE) is also used to evaluate regression predictions:
+
+$$
+\mathrm{MSE}=\frac{1}{N}\sum_{i=1}^{N}(y_i-\hat{y}_i)^2.
+$$
+
+The notebook compares MSE-based training and evaluates several L2 coefficients, including zero regularization and the coefficient derived from the MAP prior. The sweep is an experiment over regularization strengths; only the coefficient calculated from $\lambda_{\mathrm{MAP}}=1/(2N\tau^2)$ has the stated MAP-prior interpretation under the mean-NLL objective.
+
+## Repository contents
+
+- `notebook.ipynb` — data generation, model definition, training experiments, and visualizations.
+- `src.py` — Python source code for the project.
+
+## Requirements
+
+The project uses Python with NumPy, Matplotlib, and TensorFlow. Install the dependencies in your Python environment:
+
+```bash
+pip install numpy matplotlib tensorflow
+```
+
+If you maintain a `requirements.txt` file, install from it instead:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Running the project
+
+Open `notebook.ipynb` in Jupyter Notebook, JupyterLab, or VS Code and run the cells in order.
+
+## Scope
+
+This is an experimental study on synthetic one-dimensional regression data. The purpose is to compare likelihood-based training, prior-motivated L2 regularization, and the effect of regularization strength. Results depend on the random sample, model initialization, and training configuration.
